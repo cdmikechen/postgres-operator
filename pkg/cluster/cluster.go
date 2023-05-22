@@ -1466,7 +1466,21 @@ func (c *Cluster) resolveNameConflict(currentRole, newRole *spec.PgUser) spec.Pg
 		result = *newRole
 	} else {
 		result = *currentRole
+		// The user-specified case may have a reason to add additional permissions, so we handle it independently
+		if newRole.Origin == spec.RoleOriginManifest {
+			// We keep a only login/nologin role
+			containLoginRole := util.SliceContains(currentRole.Flags, constants.RoleFlagLogin) || util.SliceContains(currentRole.Flags, constants.RoleFlagNoLogin)
+			for _, flag := range newRole.Flags {
+				if (flag == constants.RoleFlagLogin || flag == constants.RoleFlagNoLogin) && containLoginRole {
+					continue
+				}
+				if !util.SliceContains(currentRole.Flags, flag) {
+					result.Flags = append(result.Flags, flag)
+				}
+			}
+		}
 	}
+
 	c.logger.Debugf("resolved a conflict of role %q between %s and %s to %s",
 		newRole.Name, newRole.Origin, currentRole.Origin, result.Origin)
 	return result
